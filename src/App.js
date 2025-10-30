@@ -1,24 +1,83 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from './supabaseClient';
-import Login from './components/Login';
-import Sidebar from './components/Sidebar';
-import ChatWindow from './components/ChatWindow';
+/* ChatRoom Styles */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0e0e0e;
+  color: white;
+  padding: 20px;
+}
 
-export default function App(){
-  const [session, setSession] = useState(null);
-  useEffect(()=>{
-    supabase.auth.getSession().then(({data:{session}})=> setSession(session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e,sess)=> setSession(sess));
-    return ()=> sub?.subscription?.unsubscribe?.();
-  },[]);
-  return (
-    <div className="app-root">
-      {!session ? <Login /> : (
-        <div className="app-shell">
-          <Sidebar session={session} />
-          <ChatWindow session={session} />
-        </div>
-      )}
-    </div>
-  );
+.chat-box {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.message {
+  background: #1c1c1c;
+  color: #fff;
+  padding: 10px 15px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  max-width: 70%;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.message.own {
+  background: #8b5cf6;
+  margin-left: auto;
+  text-align: right;
+}
+
+.message-header {
+  font-size: 0.8rem;
+  color: #ccc;
+  margin-bottom: 3px;
+}
+
+.message-time {
+  font-size: 0.7rem;
+  color: #aaa;
+  margin-top: 3px;
+}
+
+.input-form {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #333;
+}
+
+.input-box {
+  flex: 1;
+  background: #1f1f1f;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+  color: white;
+}
+
+.input-box:focus {
+  outline: none;
+  border: 1px solid #8b5cf6;
+}
+
+.send-btn {
+  background: #8b5cf6;
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.send-btn:hover {
+  background: #7c3aed;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
