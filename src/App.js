@@ -1,6 +1,6 @@
 import React from "react";
 import ChatRoom from "./ChatRoom";
-import "./App.css";
+import "./styles.css";
 
 function App() {
   return (
