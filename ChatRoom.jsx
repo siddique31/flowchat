@@ -1,26 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { supabase } from "../supabaseClient";
+import { supabase } from "./supabaseClient";
+import "./App.css";
 
-export default function ChatRoom() {
+function ChatRoom({ session }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
-  const [currentUser, setCurrentUser] = useState(null);
 
-  // ✅ Fetch current user
-  useEffect(() => {
-    const getUser = async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (data?.user) setCurrentUser(data.user);
-    };
-    getUser();
-  }, []);
-
-  // ✅ Load all messages + subscribe realtime
+  // 🟣 Fetch old messages
   useEffect(() => {
     fetchMessages();
 
-    const subscription = supabase
-      .channel("realtime-messages")
+    // 🟣 Subscribe to real-time new messages
+    const channel = supabase
+      .channel("public:messages")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
@@ -31,56 +23,70 @@ export default function ChatRoom() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(channel);
     };
   }, []);
 
-  // ✅ Fetch messages from Supabase
-  const fetchMessages = async () => {
+  async function fetchMessages() {
     const { data, error } = await supabase
       .from("messages")
       .select("*")
       .order("created_at", { ascending: true });
-    if (error) console.error(error);
-    else setMessages(data);
-  };
 
-  // ✅ Send message with username
-  const sendMessage = async (e) => {
+    if (!error) setMessages(data);
+  }
+
+  // 🟣 Send message
+  async function sendMessage(e) {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (newMessage.trim() === "") return;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return alert("Please log in first.");
-
-    const { error } = await supabase.from("messages").insert([
+    const { user } = session;
+    await supabase.from("messages").insert([
       {
-        user_id: user.id,
-        username: user.email, // you can change this to custom username if needed
         content: newMessage,
+        user_email: user.email,
       },
     ]);
 
-    if (error) console.error("Send error:", error);
-    else setNewMessage("");
-  };
+    setNewMessage("");
+  }
 
   return (
     <div className="chat-container">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ color: "#8b5cf6", fontWeight: "bold" }}>FlowChat</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span>{session.user.email}</span>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            style={{
+              background: "#8b5cf6",
+              color: "white",
+              border: "none",
+              padding: "6px 16px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "600",
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
       <div className="chat-box">
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={`message ${
-              msg.user_id === currentUser?.id ? "own" : ""
+              msg.user_email === session.user.email ? "own" : ""
             }`}
           >
-            <div className="message-header">
-              <strong>{msg.username || "Anonymous"}</strong>
-            </div>
-            <div className="message-content">{msg.content}</div>
+            <div className="message-header">{msg.user_email}</div>
+            <div>{msg.content}</div>
             <div className="message-time">
-              {new Date(msg.created_at).toLocaleTimeString()}
+              {new Date(msg.created_at).toLocaleString()}
             </div>
           </div>
         ))}
@@ -89,13 +95,17 @@ export default function ChatRoom() {
       <form onSubmit={sendMessage} className="input-form">
         <input
           type="text"
-          placeholder="Type your message..."
+          className="input-box"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          className="input-box"
+          placeholder="Type your message..."
         />
-        <button type="submit" className="send-btn">Send</button>
+        <button className="send-btn" type="submit">
+          Send
+        </button>
       </form>
     </div>
   );
 }
+
+export default ChatRoom;
