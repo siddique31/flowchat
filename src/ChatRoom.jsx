@@ -7,18 +7,28 @@ function ChatRoom() {
   const [newMessage, setNewMessage] = useState("");
   const [userId, setUserId] = useState("");
 
-  // ✅ Generate or load unique user ID once
+  // Generate or load unique user ID (browser-only)
   useEffect(() => {
-    let storedId = localStorage.getItem("flowchat_user");
-    if (!storedId) {
-      storedId = "User-" + uuidv4().slice(0, 5);
-      localStorage.setItem("flowchat_user", storedId);
+    if (typeof window !== "undefined") {
+      let storedId = localStorage.getItem("flowchat_user");
+      if (!storedId) {
+        storedId = "User-" + uuidv4().slice(0, 5);
+        localStorage.setItem("flowchat_user", storedId);
+      }
+      setUserId(storedId);
     }
-    setUserId(storedId);
   }, []);
 
-  // ✅ Fetch all messages from Supabase
+  // Fetch messages and subscribe to new ones
   useEffect(() => {
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .order("id", { ascending: true });
+      if (!error) setMessages(data || []);
+    };
+
     fetchMessages();
 
     const subscription = supabase
@@ -37,12 +47,7 @@ function ChatRoom() {
     };
   }, []);
 
-  const fetchMessages = async () => {
-    const { data } = await supabase.from("messages").select("*").order("id", { ascending: true });
-    setMessages(data || []);
-  };
-
-  // ✅ Send message
+  // Send message
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -80,7 +85,9 @@ function ChatRoom() {
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
         />
-        <button type="submit" className="send-btn">Send</button>
+        <button type="submit" className="send-btn">
+          Send
+        </button>
       </form>
     </div>
   );
