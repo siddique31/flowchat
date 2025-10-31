@@ -7,28 +7,18 @@ function ChatRoom() {
   const [newMessage, setNewMessage] = useState("");
   const [userId, setUserId] = useState("");
 
-  // Generate or load unique user ID (browser-only)
+  // ✅ Generate or load unique user ID once
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      let storedId = localStorage.getItem("flowchat_user");
-      if (!storedId) {
-        storedId = "User-" + uuidv4().slice(0, 5);
-        localStorage.setItem("flowchat_user", storedId);
-      }
-      setUserId(storedId);
+    let storedId = localStorage.getItem("flowchat_user");
+    if (!storedId) {
+      storedId = "User-" + uuidv4().slice(0, 5);
+      localStorage.setItem("flowchat_user", storedId);
     }
+    setUserId(storedId);
   }, []);
 
-  // Fetch messages and subscribe to new ones
+  // ✅ Fetch all messages from Supabase and subscribe to new ones
   useEffect(() => {
-    const fetchMessages = async () => {
-      const { data, error } = await supabase
-        .from("messages")
-        .select("*")
-        .order("id", { ascending: true });
-      if (!error) setMessages(data || []);
-    };
-
     fetchMessages();
 
     const subscription = supabase
@@ -47,7 +37,14 @@ function ChatRoom() {
     };
   }, []);
 
-  // Send message
+  const fetchMessages = async () => {
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .order("id", { ascending: true });
+    setMessages(data || []);
+  };
+
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -63,29 +60,48 @@ function ChatRoom() {
   };
 
   return (
-    <div className="chat-container">
+    <div style={{ maxWidth: "600px", margin: "20px auto", fontFamily: "sans-serif" }}>
       <h2 style={{ textAlign: "center", marginBottom: "10px" }}>💬 FlowChat</h2>
-      <div className="chat-box">
+
+      <div style={{
+        border: "1px solid #ccc",
+        borderRadius: "10px",
+        padding: "10px",
+        height: "400px",
+        overflowY: "scroll",
+        marginBottom: "10px",
+        background: "#f9f9f9"
+      }}>
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`message ${msg.username === userId ? "own" : ""}`}
+            style={{
+              marginBottom: "10px",
+              textAlign: msg.username === userId ? "right" : "left",
+            }}
           >
-            <div className="message-header">{msg.username}</div>
+            <div style={{ fontWeight: "bold" }}>{msg.username}</div>
             <div>{msg.content}</div>
           </div>
         ))}
       </div>
 
-      <form onSubmit={sendMessage} className="input-form">
+      <form onSubmit={sendMessage} style={{ display: "flex", gap: "10px" }}>
         <input
           type="text"
-          className="input-box"
           placeholder="Type a message..."
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
+          style={{ flex: 1, padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
         />
-        <button type="submit" className="send-btn">
+        <button type="submit" style={{
+          padding: "10px 20px",
+          borderRadius: "5px",
+          border: "none",
+          background: "#0070f3",
+          color: "#fff",
+          cursor: "pointer"
+        }}>
           Send
         </button>
       </form>
