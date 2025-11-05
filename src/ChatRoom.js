@@ -48,31 +48,33 @@ export default function ChatRoom() {
 
   // fetch messages + realtime subscription
   useEffect(() => {
+    const fetchMessages = async () => {
+      const { data } = await supabase
+        .from("messages")
+        .select("*")
+        .order("id", { ascending: true });
+      setMessages(data || []);
+    };
+
     fetchMessages();
 
     const subscription = supabase
       .channel("public:messages")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        { event: "*", schema: "public", table: "messages" },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new]);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
-        (payload) => {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === payload.new.id ? payload.new : m))
-          );
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "messages" },
-        (payload) => {
-          setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+          if (payload.eventType === "INSERT") {
+            setMessages((prev) => [...prev, payload.new]);
+          } else if (payload.eventType === "UPDATE") {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === payload.new.id ? payload.new : m))
+            );
+          } else if (payload.eventType === "DELETE") {
+            setMessages((prev) =>
+              prev.filter((m) => m.id !== payload.old.id)
+            );
+          }
         }
       )
       .subscribe();
@@ -80,12 +82,12 @@ export default function ChatRoom() {
     return () => {
       supabase.removeChannel(subscription);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // presence: upsert heartbeat and fetch online count every 8s
   useEffect(() => {
     if (!userId) return;
+
     const upsertPresence = async () => {
       await supabase
         .from("presence")
@@ -96,19 +98,17 @@ export default function ChatRoom() {
     };
 
     const fetchPresenceCount = async () => {
-      const tenSecondsAgo = new Date(Date.now() - 30 * 1000).toISOString(); // consider active if seen within last 30s
+      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
       const { data } = await supabase
         .from("presence")
-        .select("*", { count: "exact" })
-        .gt("last_seen", tenSecondsAgo);
+        .select("*")
+        .gt("last_seen", thirtySecondsAgo);
       setPresenceCount(data ? data.length : 0);
     };
 
-    // initial upsert + fetch
     upsertPresence();
     fetchPresenceCount();
 
-    // heartbeat interval
     heartbeatRef.current = setInterval(() => {
       upsertPresence();
       fetchPresenceCount();
@@ -116,10 +116,8 @@ export default function ChatRoom() {
 
     return () => {
       clearInterval(heartbeatRef.current);
-      // optional: remove presence row on unmount
       supabase.from("presence").delete().eq("username", userId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   // auto scroll on message changes
@@ -127,18 +125,9 @@ export default function ChatRoom() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // fetch messages
-  const fetchMessages = async () => {
-    const { data } = await supabase
-      .from("messages")
-      .select("*")
-      .order("id", { ascending: true });
-    setMessages(data || []);
-  };
-
   // send new message
   const sendMessage = async (e) => {
-    e?.preventDefault();
+    e.preventDefault();
     if (!newMessage.trim()) return;
 
     const { error } = await supabase.from("messages").insert([
@@ -152,17 +141,14 @@ export default function ChatRoom() {
     if (!error) setNewMessage("");
   };
 
-  // start editing
-  const startEdit = (msg) => {
-    setEditingId(msg.id);
-    setEditingText(msg.content);
-  };
-
-  // save edit
+  // save edited message
   const saveEdit = async (e) => {
     e.preventDefault();
     if (!editingText.trim()) return;
-    await supabase.from("messages").update({ content: editingText }).eq("id", editingId);
+    await supabase
+      .from("messages")
+      .update({ content: editingText })
+      .eq("id", editingId);
     setEditingId(null);
     setEditingText("");
   };
@@ -173,15 +159,13 @@ export default function ChatRoom() {
     await supabase.from("messages").delete().eq("id", id);
   };
 
-  // format time
   const formatTime = (iso) => {
     if (!iso) return "";
     const d = new Date(iso);
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  // compute simple "seen" indicator: if others present (>1) and last message is yours
-  const lastMessage = messages.length ? messages[messages.length - 1] : null;
+  const lastMessage = messages[messages.length - 1];
   const isLastOwn = lastMessage && lastMessage.username === userId;
   const seenByOthers = isLastOwn && presenceCount > 1;
 
@@ -217,7 +201,10 @@ export default function ChatRoom() {
                   <div className="message-header">{msg.username}</div>
                   {isOwn && (
                     <div className="msg-actions">
-                      <button className="action-btn" onClick={() => startEdit(msg)}>✏️</button>
+                      <button className="action-btn" onClick={() => {
+                        setEditingId(msg.id);
+                        setEditingText(msg.content);
+                      }}>✏️</button>
                       <button className="action-btn" onClick={() => deleteMessage(msg.id)}>🗑️</button>
                     </div>
                   )}
@@ -231,14 +218,24 @@ export default function ChatRoom() {
                       className="edit-input"
                     />
                     <button type="submit" className="save-btn">Save</button>
-                    <button type="button" className="cancel-btn" onClick={() => { setEditingId(null); setEditingText(""); }}>Cancel</button>
+                    <button
+                      type="button"
+                      className="cancel-btn"
+                      onClick={() => { setEditingId(null); setEditingText(""); }}
+                    >
+                      Cancel
+                    </button>
                   </form>
                 ) : (
                   <>
                     <div className="message-content">{msg.content}</div>
                     <div className="message-row-bottom">
                       <div className="message-time">{formatTime(msg.created_at)}</div>
-                      {isOwn && <div className="seen-indicator">{seenByOthers ? "Seen ✓" : ""}</div>}
+                      {isOwn && (
+                        <div className="seen-indicator">
+                          {seenByOthers ? "Seen ✓" : ""}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -252,7 +249,6 @@ export default function ChatRoom() {
             </div>
           );
         })}
-
         <div ref={messagesEndRef} />
       </div>
 
@@ -262,9 +258,15 @@ export default function ChatRoom() {
           className="input-box"
           placeholder={editingId ? "Edit message..." : "Type a message..."}
           value={editingId ? editingText : newMessage}
-          onChange={(e) => editingId ? setEditingText(e.target.value) : setNewMessage(e.target.value)}
+          onChange={(e) =>
+            editingId
+              ? setEditingText(e.target.value)
+              : setNewMessage(e.target.value)
+          }
         />
-        <button type="submit" className="send-btn">{editingId ? "Update" : "Send"}</button>
+        <button type="submit" className="send-btn">
+          {editingId ? "Update" : "Send"}
+        </button>
       </form>
     </div>
   );
