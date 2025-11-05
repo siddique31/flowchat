@@ -1,24 +1,31 @@
-// src/App.js
-import React from "react";
+import React, { useState, useEffect } from "react";
 import ChatRoom from "./ChatRoom";
-import "./styles.css"; // ✅ Make sure file name matches exactly (styles.css)
+import "./styles.css";
 
 function App() {
+  const [theme, setTheme] = useState("light");
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
   return (
     <div className="App">
-      {/* 🔹 Header Section */}
       <header className="header">
         <h1>💬 FlowChat — Real-time Chat</h1>
+        <button onClick={toggleTheme}>
+          {theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}
+        </button>
       </header>
 
-      {/* 🔹 Main Chat Room */}
-      <main>
-        <ChatRoom />
-      </main>
+      <ChatRoom />
 
-      {/* 🔹 Footer Section */}
       <footer className="footer">
-        <p>© {new Date().getFullYear()} FlowChat </p>
+        <p>© 2025 FlowChat by VirtualFlow Agency</p>
       </footer>
     </div>
   );
