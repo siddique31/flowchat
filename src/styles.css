@@ -8,6 +8,8 @@
   --muted: #6b7280;
   --bubble-other: #e9eff5;
   --bubble-own: var(--accent);
+  --online: #22c55e;
+  --offline: #ef4444;
 }
 
 /* 🌙 Dark Mode Variables */
@@ -19,6 +21,8 @@
   --muted: #94a3b8;
   --bubble-other: #334155;
   --bubble-own: var(--accent);
+  --online: #4ade80;
+  --offline: #f87171;
 }
 
 /* Global Styles */
@@ -41,6 +45,14 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 20px;
 }
 
 .header button {
@@ -49,7 +61,6 @@ body {
   color: white;
   padding: 6px 14px;
   border-radius: 6px;
-  margin-left: 10px;
   cursor: pointer;
   font-weight: 500;
   transition: 0.3s ease;
@@ -68,29 +79,31 @@ body {
   margin: 20px auto;
   background: var(--card);
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   overflow: hidden;
-  padding: 10px;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 /* Messages Area */
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  scroll-behavior: smooth;
 }
 
 /* Message Bubbles */
 .message {
   padding: 10px 14px;
   border-radius: 16px;
-  max-width: 80%;
+  max-width: 75%;
   line-height: 1.4;
   font-size: 15px;
   word-wrap: break-word;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 .message.own {
@@ -103,6 +116,18 @@ body {
   background: var(--bubble-other);
   color: var(--text);
   align-self: flex-start;
+}
+
+/* Avatar */
+.avatar-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.avatar-wrapper svg {
+  border-radius: 50%;
+  background: var(--card);
+  padding: 2px;
 }
 
 /* Input Bar */
@@ -122,6 +147,11 @@ body {
   font-size: 15px;
   color: var(--text);
   background: var(--bg);
+  transition: background 0.3s ease, color 0.3s ease, border 0.3s ease;
+}
+
+.input-bar input:focus {
+  border-color: var(--accent);
 }
 
 .input-bar button {
@@ -146,4 +176,18 @@ body {
   color: var(--muted);
   padding: 12px 0;
   font-size: 14px;
+}
+
+/* Online/Offline Dot */
+.online-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: var(--offline);
+}
+
+.online-dot.online {
+  background: var(--online);
 }
