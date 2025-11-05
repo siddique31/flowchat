@@ -1,4 +1,3 @@
-// src/supabaseClient.js
 import { createClient } from '@supabase/supabase-js';
 
 // ✅ Direct Supabase credentials (since Vercel envs are sometimes async)
