@@ -2,22 +2,16 @@
   "name": "flowchat",
   "version": "1.0.0",
   "private": true,
-  "homepage": "https://siddique31.github.io/flowchat1", // ✅ Add your GitHub Pages URL
   "dependencies": {
-    "@supabase/supabase-js": "^2.47.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
-    "uuid": "^9.0.0"
-  },
-  "devDependencies": {
-    "gh-pages": "^5.0.1",
+    "@supabase/supabase-js": "^2.47.5",
+    "uuid": "^9.0.0",
     "eslint-plugin-react-hooks": "^4.6.0"
   },
   "scripts": {
     "start": "react-scripts start",
-    "predeploy": "npm run build",       // ✅ For gh-pages
-    "deploy": "gh-pages -d build",      // ✅ Deploy command
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
