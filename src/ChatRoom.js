@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { v4 as uuidv4 } from "uuid";
+import Status from "./Status"; // Status component
 
 /* Small static avatar SVG */
 function AvatarIcon({ size = 36 }) {
@@ -33,6 +34,7 @@ export default function ChatRoom() {
   const [editingText, setEditingText] = useState("");
   const [userId, setUserId] = useState("");
   const [presenceCount, setPresenceCount] = useState(0);
+
   const messagesEndRef = useRef(null);
   const heartbeatRef = useRef(null);
 
@@ -48,40 +50,31 @@ export default function ChatRoom() {
 
   // fetch messages + realtime subscription
   useEffect(() => {
-    const fetchMessages = async () => {
-      const { data } = await supabase
-        .from("messages")
-        .select("*")
-        .order("id", { ascending: true });
-      setMessages(data || []);
-    };
-
     fetchMessages();
 
     const subscription = supabase
       .channel("public:messages")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            setMessages((prev) => [...prev, payload.new]);
-          } else if (payload.eventType === "UPDATE") {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === payload.new.id ? payload.new : m))
-            );
-          } else if (payload.eventType === "DELETE") {
-            setMessages((prev) =>
-              prev.filter((m) => m.id !== payload.old.id)
-            );
-          }
-        }
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => setMessages((prev) => [...prev, payload.new])
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages" },
+        (payload) =>
+          setMessages((prev) =>
+            prev.map((m) => (m.id === payload.new.id ? payload.new : m))
+          )
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "messages" },
+        (payload) => setMessages((prev) => prev.filter((m) => m.id !== payload.old.id))
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(subscription);
-    };
+    return () => supabase.removeChannel(subscription);
   }, []);
 
   // presence: upsert heartbeat and fetch online count every 8s
@@ -91,18 +84,12 @@ export default function ChatRoom() {
     const upsertPresence = async () => {
       await supabase
         .from("presence")
-        .upsert(
-          { username: userId, last_seen: new Date().toISOString() },
-          { onConflict: ["username"] }
-        );
+        .upsert({ username: userId, last_seen: new Date().toISOString() }, { onConflict: ["username"] });
     };
 
     const fetchPresenceCount = async () => {
-      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
-      const { data } = await supabase
-        .from("presence")
-        .select("*")
-        .gt("last_seen", thirtySecondsAgo);
+      const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
+      const { data } = await supabase.from("presence").select("*").gt("last_seen", thirtySecondsAgo);
       setPresenceCount(data ? data.length : 0);
     };
 
@@ -125,35 +112,35 @@ export default function ChatRoom() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // send new message
+  const fetchMessages = async () => {
+    const { data } = await supabase.from("messages").select("*").order("id", { ascending: true });
+    setMessages(data || []);
+  };
+
   const sendMessage = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!newMessage.trim()) return;
 
     const { error } = await supabase.from("messages").insert([
-      {
-        username: userId,
-        content: newMessage.trim(),
-        created_at: new Date().toISOString(),
-      },
+      { username: userId, content: newMessage.trim(), created_at: new Date().toISOString() },
     ]);
 
     if (!error) setNewMessage("");
   };
 
-  // save edited message
+  const startEdit = (msg) => {
+    setEditingId(msg.id);
+    setEditingText(msg.content);
+  };
+
   const saveEdit = async (e) => {
     e.preventDefault();
     if (!editingText.trim()) return;
-    await supabase
-      .from("messages")
-      .update({ content: editingText })
-      .eq("id", editingId);
+    await supabase.from("messages").update({ content: editingText }).eq("id", editingId);
     setEditingId(null);
     setEditingText("");
   };
 
-  // delete message
   const deleteMessage = async (id) => {
     if (!window.confirm("Are you sure you want to delete this message?")) return;
     await supabase.from("messages").delete().eq("id", id);
@@ -161,89 +148,51 @@ export default function ChatRoom() {
 
   const formatTime = (iso) => {
     if (!iso) return "";
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const lastMessage = messages[messages.length - 1];
+  const lastMessage = messages.length ? messages[messages.length - 1] : null;
   const isLastOwn = lastMessage && lastMessage.username === userId;
   const seenByOthers = isLastOwn && presenceCount > 1;
 
   return (
-    <div className="chat-container">
-      <header className="chat-header">
-        <div className="header-left">
-          <span className="app-title">💬 FlowChat Pro</span>
-          <span className={`online-dot ${presenceCount > 0 ? "online" : "offline"}`} />
-          <span className="online-text">
-            {presenceCount > 0 ? `${presenceCount} online` : "Offline"}
-          </span>
-        </div>
-        <div className="header-right">
-          <button className="call-btn" title="Audio call">📞</button>
-          <button className="call-btn" title="Video call">🎥</button>
-        </div>
-      </header>
+    <div className="chat-room">
+      {/* Status Bar */}
+      {userId && <Status userId={userId} />}
 
-      <div className="chat-box">
+      {/* Chat Header */}
+      <div className="chat-header">
+        <h3>💬 FlowChat Pro</h3>
+        <span>{presenceCount} online</span>
+      </div>
+
+      {/* Chat Messages */}
+      <div className="messages">
         {messages.map((msg) => {
           const isOwn = msg.username === userId;
           return (
-            <div key={msg.id} className={`chat-row ${isOwn ? "own-row" : "other-row"}`}>
-              {!isOwn && (
-                <div className="avatar-wrapper">
-                  <AvatarIcon />
-                </div>
-              )}
-
-              <div className={`message-bubble ${isOwn ? "own" : "other"}`}>
-                <div className="message-row-top">
-                  <div className="message-header">{msg.username}</div>
-                  {isOwn && (
-                    <div className="msg-actions">
-                      <button className="action-btn" onClick={() => {
-                        setEditingId(msg.id);
-                        setEditingText(msg.content);
-                      }}>✏️</button>
-                      <button className="action-btn" onClick={() => deleteMessage(msg.id)}>🗑️</button>
-                    </div>
-                  )}
-                </div>
-
+            <div key={msg.id} className={`message ${isOwn ? "own" : "other"}`}>
+              {!isOwn && <AvatarIcon />}
+              <div className="message-content">
+                <strong>{msg.username}</strong>
                 {editingId === msg.id ? (
-                  <form onSubmit={saveEdit} className="edit-form">
-                    <input
-                      value={editingText}
-                      onChange={(e) => setEditingText(e.target.value)}
-                      className="edit-input"
-                    />
-                    <button type="submit" className="save-btn">Save</button>
-                    <button
-                      type="button"
-                      className="cancel-btn"
-                      onClick={() => { setEditingId(null); setEditingText(""); }}
-                    >
-                      Cancel
-                    </button>
+                  <form onSubmit={saveEdit}>
+                    <input value={editingText} onChange={(e) => setEditingText(e.target.value)} />
+                    <button type="submit">Save</button>
+                    <button type="button" onClick={() => { setEditingId(null); setEditingText(""); }}>Cancel</button>
                   </form>
                 ) : (
                   <>
-                    <div className="message-content">{msg.content}</div>
-                    <div className="message-row-bottom">
-                      <div className="message-time">{formatTime(msg.created_at)}</div>
-                      {isOwn && (
-                        <div className="seen-indicator">
-                          {seenByOthers ? "Seen ✓" : ""}
-                        </div>
-                      )}
-                    </div>
+                    <p>{msg.content}</p>
+                    <span>{formatTime(msg.created_at)} {isOwn && seenByOthers ? "✓ Seen" : ""}</span>
                   </>
                 )}
               </div>
-
-              {isOwn && (
-                <div className="avatar-wrapper avatar-right">
-                  <AvatarIcon />
+              {isOwn && <AvatarIcon />}
+              {isOwn && !editingId && (
+                <div className="msg-actions">
+                  <button onClick={() => startEdit(msg)}>✏️</button>
+                  <button onClick={() => deleteMessage(msg.id)}>🗑️</button>
                 </div>
               )}
             </div>
@@ -252,21 +201,15 @@ export default function ChatRoom() {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={editingId ? saveEdit : sendMessage} className="input-form">
+      {/* Input Box */}
+      <form onSubmit={editingId ? saveEdit : sendMessage} className="input-bar">
         <input
           type="text"
-          className="input-box"
           placeholder={editingId ? "Edit message..." : "Type a message..."}
           value={editingId ? editingText : newMessage}
-          onChange={(e) =>
-            editingId
-              ? setEditingText(e.target.value)
-              : setNewMessage(e.target.value)
-          }
+          onChange={(e) => editingId ? setEditingText(e.target.value) : setNewMessage(e.target.value)}
         />
-        <button type="submit" className="send-btn">
-          {editingId ? "Update" : "Send"}
-        </button>
+        <button type="submit">{editingId ? "Update" : "Send"}</button>
       </form>
     </div>
   );
