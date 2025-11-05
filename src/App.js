@@ -1,4 +1,3 @@
-// src/App.js
 import React, { useState } from "react";
 import ChatRoom from "./ChatRoom";
 import ProfilePage from "./ProfilePage";
